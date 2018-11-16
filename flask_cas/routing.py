@@ -8,9 +8,9 @@ from .cas_urls import create_cas_validate_url
 
 
 try:
-    from urllib import urlopen
+    from urllib import HTTPError, urlopen
 except ImportError:
-    from urllib.request import urlopen
+    from urllib.request import HTTPError, urlopen
 
 blueprint = flask.Blueprint('cas', __name__)
 
