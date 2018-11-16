@@ -1,4 +1,5 @@
 import flask
+import sqlite3
 from xmltodict import parse
 from flask import current_app
 from .cas_urls import create_cas_login_url
@@ -70,6 +71,9 @@ def logout():
 
     if cas_attributes_session_key in flask.session:
         del flask.session[cas_attributes_session_key]
+    
+    if 'ticket' in flask.request.args:
+        del flask.request.args['ticket']
 
     if(current_app.config['CAS_AFTER_LOGOUT'] != None):
         redirect_url = create_cas_logout_url(
@@ -114,15 +118,15 @@ def validate(ticket):
     try:
         xmldump = urlopen(cas_validate_url).read().strip().decode('utf8', 'ignore')
         xml_from_dict = parse(xmldump)
-        isValid = True if "cas:authenticationSuccess" in xml_from_dict["cas:serviceResponse"] else False
-    except ValueError:
+        isValid = True if "serviceResponse" in xml_from_dict and "authenticationSuccess" in xml_from_dict["serviceResponse"] else False
+    except (HTTPError, ValueError):
         current_app.logger.error("CAS returned unexpected result")
 
     if isValid:
         current_app.logger.debug("valid")
-        xml_from_dict = xml_from_dict["cas:serviceResponse"]["cas:authenticationSuccess"]
-        username = xml_from_dict["cas:user"]
-        attributes = xml_from_dict.get("cas:attributes", {})
+        xml_from_dict = xml_from_dict["serviceResponse"]["authenticationSuccess"]
+        username = xml_from_dict["user"]
+        attributes = xml_from_dict.get("attributes", {})
 
         if "cas:memberOf" in attributes:
             attributes["cas:memberOf"] = attributes["cas:memberOf"].lstrip('[').rstrip(']').split(',')
@@ -130,8 +134,16 @@ def validate(ticket):
                 attributes['cas:memberOf'][group_number] = attributes['cas:memberOf'][group_number].lstrip(' ').rstrip(' ')
 
         flask.session[cas_username_session_key] = username
-        flask.session[cas_attributes_session_key] = attributes
+        flask.session[cas_attributes_session_key] = fetch_user_id(username)
     else:
         current_app.logger.debug("invalid")
 
     return isValid
+
+def fetch_user_id(username):
+    database_uri = current_app.config['DATABASE_URI'] if current_app.config['DATABASE_URI'] is not None else '/home/work/.superset/superset.db'
+    conn = sqlite3.connect(database_uri)
+    c = conn.cursor()
+    cursor = c.execute("SELECT id from ab_user where username='%s'" % username)
+    row = cursor.fetchone()
+    return row[0]
