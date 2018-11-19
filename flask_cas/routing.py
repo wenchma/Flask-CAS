@@ -128,22 +128,22 @@ def validate(ticket):
         username = xml_from_dict["user"]
         attributes = xml_from_dict.get("attributes", {})
 
-        if "cas:memberOf" in attributes:
-            attributes["cas:memberOf"] = attributes["cas:memberOf"].lstrip('[').rstrip(']').split(',')
-            for group_number in range(0, len(attributes['cas:memberOf'])):
-                attributes['cas:memberOf'][group_number] = attributes['cas:memberOf'][group_number].lstrip(' ').rstrip(' ')
+        if "memberOf" in attributes:
+            attributes["memberOf"] = attributes["memberOf"].lstrip('[').rstrip(']').split(',')
+            for group_number in range(0, len(attributes['memberOf'])):
+                attributes['memberOf'][group_number] = attributes['memberOf'][group_number].lstrip(' ').rstrip(' ')
 
         flask.session[cas_username_session_key] = username
-        flask.session[cas_attributes_session_key] = fetch_user_id(username)
+        flask.session[cas_attributes_session_key] = fetch_user_id(attributes['email'])
     else:
         current_app.logger.debug("invalid")
 
     return isValid
 
-def fetch_user_id(username):
+def fetch_user_id(email):
     database_uri = current_app.config['DATABASE_URI'] if current_app.config['DATABASE_URI'] is not None else '/home/work/.superset/superset.db'
     conn = sqlite3.connect(database_uri)
     c = conn.cursor()
-    cursor = c.execute("SELECT id from ab_user where username='%s'" % username)
+    cursor = c.execute("SELECT id from ab_user where email='%s'" % email)
     row = cursor.fetchone()
     return row[0]
